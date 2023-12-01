@@ -25,7 +25,17 @@ class PretrainingTrainer(BaseTrainer):
             batch_preds = prediction[batch_mask_idxs, b, :]
 
             batch_loss.append(self.criterion(batch_preds, batch_targets))
-        return torch.mean(torch.tensor(batch_loss))
+        return torch.mean(torch.stack(batch_loss))
+
+    @staticmethod
+    def get_target(data):
+        batch_size = data["data"].shape[1]
+        target = []
+        for b in range(batch_size):
+            batch_mask_idxs = data["mask_idxs"][b]
+            _target = data["data"][batch_mask_idxs, b, :]
+            target.append(_target)
+        return target
 
     def train_epoch(self, dataloader):
         self.model.train()
@@ -34,22 +44,23 @@ class PretrainingTrainer(BaseTrainer):
         pbar = tqdm(dataloader, desc=f"{self.epoch + 1}/{self.epochs}")
         for _, data in enumerate(pbar):
             data["data"] = data["data"].to(self.device)
-            batch_data = data["data"]
+            data["target"] = self.get_target(data)
+            self.model.add_tokens(data)
 
             self.optimizer.zero_grad(set_to_none=True)
-
             # forward pass
             with torch.cuda.amp.autocast():
-                prediction = self(batch_data)
-
-            batch_loss = self.loss_calculation(prediction, data)
-            # # update metrics
-            loss.update(batch_loss)
+                prediction = self(data["data"])
+                batch_loss = self.loss_calculation(prediction, data)
 
             # # backward pass + weight update
             self.scaler.scale(batch_loss).backward()
             self.scaler.step(self.optimizer)
             self.scaler.update()
+
+            # # update metrics
+            loss.update(batch_loss)
+            pbar.set_description(f"{self.epoch + 1}/{self.epochs}: Loss: {loss.compute().item():.4f}")
 
     def validate_epoch(self, dataloader):
         self.model.eval()

@@ -20,8 +20,7 @@ def main(config):
         batch_size=config["batch_size"],
         collate_fn=partial(
             collate_fn,
-            pad_token=model.pad_token,
-            msk_token=model.mask_token,
+            pad_token=torch.zeros([1, 108]),
             mask_prob=config["mask_probability"]
         )
     )
@@ -33,7 +32,6 @@ def main(config):
         collate_fn=partial(
             collate_fn,
             pad_token=model.pad_token,
-            msk_token=model.mask_token,
             mask_prob=config["mask_probability"]
         )
     )

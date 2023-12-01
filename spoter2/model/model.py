@@ -26,6 +26,14 @@ class SPOTEREncoder(nn.Module):
         self.pad_token = nn.Parameter(torch.rand(1, hidden_dim))
         self.output_projection = nn.Linear(hidden_dim, hidden_dim)
 
+    def add_tokens(self, batch_data: dict):
+        batch_size = batch_data["data"].shape[1]
+        for b in range(batch_size):
+            msk_idx = batch_data["mask_idxs"][b]
+            pad_idx = batch_data["padding_idxs"][b]
+            batch_data["data"][:, b, :][msk_idx] = self.mask_token
+            batch_data["data"][:, b, :][pad_idx] = self.pad_token
+
     def forward(self, x):
         x = self.pos_encoding(x)
         x = self.transformer_encoder(x)  # expected input [seq, batch, feature]
