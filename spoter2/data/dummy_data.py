@@ -32,7 +32,7 @@ class StructuredDummyDataset(DummyDataset):
         phi = np.random.uniform(0, 360)
         f = np.random.uniform(0, 0.1)
         t = np.arange(seq_len)
-        amp = np.random.uniform(1, 10)
+        amp = np.random.uniform(0, 1)
         seq = amp * np.sin(2 * np.pi * f * t + phi)
 
         return seq
