@@ -13,14 +13,14 @@ def test():
         batch_size=4,
         collate_fn=partial(
             collate_fn,
-            pad_token=torch.zeros([1, 108]),
-            mask_prob=0.1
+            pad_token=torch.zeros([1, 108])
         )
     )
 
     batch = next(iter(loader))
     data = batch["data"].permute(1, 0, 2)
     print("data shape:", data.shape)
+    print(batch["padding_idx"])
 
     fig, ax = plt.subplots(1, data.shape[0], figsize=(5 * data.shape[0], 10))
     for i, d in enumerate(data):
