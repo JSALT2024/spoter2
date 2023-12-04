@@ -15,9 +15,9 @@ from spoter2.utils import set_seed
 
 def main(config):
     set_seed(config.get("seed", 0))
-    model = SPOTEREncoder(108, 256, 9, 6, config.get("positional_encoding", ""))
+    model = SPOTEREncoder(108, 256, 6, 6, config.get("positional_encoding", ""))
 
-    train_dataset = StructuredDummyDataset(1024, (128, 256), 108)
+    train_dataset = StructuredDummyDataset(256, (128, 256), 108)
     val_dataset = StructuredDummyDataset(256, (128, 256), 108)
 
     train_loader = DataLoader(
@@ -86,10 +86,10 @@ def main(config):
 
 if __name__ == "__main__":
     basic_config = {
-        "learning_rate": 0.001,
+        "learning_rate": 0.005,
         "batch_size": 32,
-        "epochs": 10,
-        "mask_ratio": 0.1,
+        "epochs": 50,
+        "mask_ratio": 0.2,
         "positional_encoding": "learnable_normal",
         "seed": 0,
         "scheduler": "cos"

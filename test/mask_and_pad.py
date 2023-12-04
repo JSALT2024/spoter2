@@ -11,7 +11,7 @@ from spoter2.utils import set_seed, plot_batch
 
 def test():
     set_seed(0)
-    model = SPOTEREncoder(108, 256, 9, 6, "")
+    model = SPOTEREncoder(108, 256, 6, 6, "")
 
     dataset = StructuredDummyDataset()
     loader = DataLoader(
@@ -31,7 +31,7 @@ def test():
     batch["data"] = model.replace_padding(batch["data"], batch["padding_idx"])
     plot_batch(data)
 
-    batch["data"] = model.mask_input(batch["data"], batch["padding_idx"], 0.5)
+    batch["data"] = model.mask_input(batch["data"], batch["padding_idx"], 0.1)
     plot_batch(data)
 
 

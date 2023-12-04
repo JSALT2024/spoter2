@@ -18,7 +18,7 @@ def test():
     )
 
     batch = next(iter(loader))
-    data = batch["data"].permute(1, 0, 2)
+    data = batch["data"]
     print("data shape:", data.shape)
     print(batch["padding_idx"])
 

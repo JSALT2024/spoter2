@@ -13,12 +13,12 @@ from spoter2.utils import set_seed
 
 
 def test():
-    epochs = 1500
+    epochs = 2000
     lr = 0.001
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
     set_seed(0)
-    model = SPOTEREncoder(108, 256, 9, 6, "learnable_uniform").to(device)
+    model = SPOTEREncoder(108, 256, 6, 6, "learnable_uniform").to(device)
     criterion = nn.MSELoss()
     optimizer = optim.AdamW(model.parameters(), lr)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=epochs, eta_min=lr * 1e-3)

@@ -4,7 +4,7 @@ import numpy as np
 
 def collate_fn(batch: list, pad_token: torch.tensor):
     """
-    batch: list([SEQ, B, DIM])
+    batch: list([B, SEQ, DIM])
     """
     target_length = np.max([sample.shape[0] for sample in batch])
 
@@ -20,6 +20,6 @@ def collate_fn(batch: list, pad_token: torch.tensor):
         padding_idx.append(seq_len)
 
     return {
-        "data": torch.stack(_batch).permute(1, 0, 2),
+        "data": torch.stack(_batch),
         "padding_idx": padding_idx
     }

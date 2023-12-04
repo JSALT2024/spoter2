@@ -18,11 +18,11 @@ def set_seed(seed=0, device='cuda'):
 
 def plot_batch(data: torch.tensor):
     """
-    data: [SEQ, B, DIM]
+    data: [B, SEQ, DIM]
     """
     data = data.clone().detach().cpu().numpy()
-    batch_size = data.shape[1]
+    batch_size = data.shape[0]
     fig, ax = plt.subplots(1, batch_size, figsize=(5 * batch_size, 10))
     for i in range(batch_size):
-        ax[i].imshow(data[:, i, :])
+        ax[i].imshow(data[i])
     plt.show()
