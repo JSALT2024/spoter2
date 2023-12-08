@@ -2,10 +2,11 @@ import torch
 import numpy as np
 
 
-def collate_fn(batch: list, pad_token: torch.tensor):
+def collate_fn(batch: list):
     """
     batch: list([B, SEQ, DIM])
     """
+    pad_token = torch.zeros([1, batch[0].shape[-1]])
     target_length = np.max([sample.shape[0] for sample in batch])
 
     _batch = []

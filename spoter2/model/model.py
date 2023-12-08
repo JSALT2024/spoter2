@@ -6,7 +6,8 @@ from spoter2.model.positiona_encoding import LearnablePositionalEncoding
 
 class SPOTEREncoder(nn.Module):
     def __init__(self,
-                 hidden_dim: int = 108,
+                 data_dim: int = 110,
+                 hidden_dim: int = 256,
                  max_frames: int = 256,
                  nhead: int = 6,
                  num_layers: int = 6,
@@ -15,8 +16,18 @@ class SPOTEREncoder(nn.Module):
         super().__init__()
 
         # define transformer encoder
+        self.input_embedding = nn.Sequential(
+            nn.Linear(data_dim, hidden_dim),
+            nn.GELU()
+        )
+
         encoder_layer = nn.TransformerEncoderLayer(d_model=hidden_dim, nhead=nhead, batch_first=True)
         self.transformer_encoder = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
+
+        self.head = nn.Sequential(
+            nn.Linear(hidden_dim, data_dim),
+            nn.Sigmoid()
+        )
 
         # define pos encoding
         self.pos_encoding = None
@@ -26,8 +37,8 @@ class SPOTEREncoder(nn.Module):
             self.pos_encoding = LearnablePositionalEncoding(max_frames, hidden_dim, 0.02)
 
         # define tokens
-        self.mask_token = nn.Parameter(torch.rand(1, hidden_dim))
-        self.pad_token = nn.Parameter(torch.rand(1, hidden_dim))
+        self.mask_token = nn.Parameter(torch.rand(1, data_dim))
+        self.pad_token = nn.Parameter(torch.rand(1, data_dim))
 
     def __initialize_weights(self):
         torch.nn.init.normal_(self.mask_token, std=0.2)
@@ -52,6 +63,7 @@ class SPOTEREncoder(nn.Module):
             np.random.shuffle(mask_idxs)
             idx = np.ceil(len(mask_idxs) * mask_ratio).astype(int)
             mask_idxs = mask_idxs[:idx]
+            mask_idxs = np.sort(mask_idxs)
 
             target = data[bi][mask_idxs]
             data[bi][mask_idxs] = self.mask_token.repeat(len(mask_idxs), 1)
@@ -71,12 +83,16 @@ class SPOTEREncoder(nn.Module):
         x = self.replace_padding(x, padding_idx)
         x, targets, mask_idxs = self.mask_input(x, padding_idx, mask_ratio)
 
+        # input embedding
+        x = self.input_embedding(x)
+
         # add pos encoding
         if self.pos_encoding is not None:
             x = self.pos_encoding(x)
 
         # apply transformer
         x = self.transformer_encoder(x)
+        x = self.head(x)
 
         # get predictions
         predictions = []

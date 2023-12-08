@@ -11,10 +11,7 @@ def test():
         dataset,
         shuffle=False,
         batch_size=4,
-        collate_fn=partial(
-            collate_fn,
-            pad_token=torch.zeros([1, 108])
-        )
+        collate_fn=collate_fn
     )
 
     batch = next(iter(loader))
