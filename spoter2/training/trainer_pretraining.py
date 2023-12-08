@@ -31,11 +31,13 @@ class PretrainingTrainer(BaseTrainer):
             train_loss.append(train_epoch_loss)
             val_loss.append(val_epoch_loss)
 
+            self.apply_callbacks()
+
         return train_loss, val_loss
 
     def train_epoch(self, dataloader):
         self.model.train()
-        loss = MeanMetric().to(self.device)
+        self.train_loss.reset()
 
         pbar = tqdm(dataloader, desc=f"{self.epoch + 1}/{self.epochs}")
         for _, data in enumerate(pbar):
@@ -55,13 +57,13 @@ class PretrainingTrainer(BaseTrainer):
                 self.scheduler.step()
 
             # update metrics
-            loss.update(batch_loss)
-            pbar.set_description(f"{self.epoch + 1}/{self.epochs}: Train Loss: {loss.compute().item():.4f}")
-        return loss.compute().item()
+            self.train_loss.update(batch_loss)
+            pbar.set_description(f"{self.epoch + 1}/{self.epochs}: Train Loss: {self.train_loss.compute().item():.4f}")
+        return self.train_loss.compute().item()
 
     def validate_epoch(self, dataloader):
         self.model.eval()
-        loss = MeanMetric().to(self.device)
+        self.val_loss.reset()
 
         pbar = tqdm(dataloader, desc=f"{self.epoch + 1}/{self.epochs}")
         for _, data in enumerate(pbar):
@@ -73,6 +75,6 @@ class PretrainingTrainer(BaseTrainer):
                 batch_loss = self.loss_calculation(predictions, targets)
 
             # update metrics
-            loss.update(batch_loss)
-            pbar.set_description(f"{self.epoch + 1}/{self.epochs}: Val Loss: {loss.compute().item():.4f}")
-        return loss.compute().item()
+            self.val_loss.update(batch_loss)
+            pbar.set_description(f"{self.epoch + 1}/{self.epochs}: Val Loss: {self.val_loss.compute().item():.4f}")
+        return self.val_loss.compute().item()
