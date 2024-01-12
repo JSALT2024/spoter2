@@ -1,7 +1,7 @@
 from spoter2.training import BaseTrainer
 from tqdm import tqdm
-from torchmetrics import MeanMetric
 import torch
+import wandb
 
 
 class PretrainingTrainer(BaseTrainer):
@@ -22,6 +22,8 @@ class PretrainingTrainer(BaseTrainer):
         return torch.mean(torch.stack(batch_loss))
 
     def train(self):
+        self.before_training_callbacks()
+
         train_loss = []
         val_loss = []
         for epoch in range(self.epochs):
@@ -33,11 +35,14 @@ class PretrainingTrainer(BaseTrainer):
 
             self.apply_callbacks()
 
+        if wandb.run is not None:
+            wandb.finish()
+
         return train_loss, val_loss
 
     def train_epoch(self, dataloader):
         self.model.train()
-        self.train_loss.reset()
+        self.metrics["train_loss"].reset()
 
         pbar = tqdm(dataloader, desc=f"{self.epoch + 1}/{self.epochs}")
         for _, data in enumerate(pbar):
@@ -57,13 +62,14 @@ class PretrainingTrainer(BaseTrainer):
                 self.scheduler.step()
 
             # update metrics
-            self.train_loss.update(batch_loss)
-            pbar.set_description(f"{self.epoch + 1}/{self.epochs}: Train Loss: {self.train_loss.compute().item():.4f}")
-        return self.train_loss.compute().item()
+            self.metrics["train_loss"].update(batch_loss)
+            pbar.set_description(
+                f"{self.epoch + 1}/{self.epochs}: Train Loss: {self.metrics['train_loss'].compute().item():.4f}")
+        return self.metrics["train_loss"].compute().item()
 
     def validate_epoch(self, dataloader):
         self.model.eval()
-        self.val_loss.reset()
+        self.metrics["val_loss"].reset()
 
         pbar = tqdm(dataloader, desc=f"{self.epoch + 1}/{self.epochs}")
         for _, data in enumerate(pbar):
@@ -75,6 +81,7 @@ class PretrainingTrainer(BaseTrainer):
                 batch_loss = self.loss_calculation(predictions, targets)
 
             # update metrics
-            self.val_loss.update(batch_loss)
-            pbar.set_description(f"{self.epoch + 1}/{self.epochs}: Val Loss: {self.val_loss.compute().item():.4f}")
-        return self.val_loss.compute().item()
+            self.metrics["val_loss"].update(batch_loss)
+            pbar.set_description(
+                f"{self.epoch + 1}/{self.epochs}: Val Loss: {self.metrics['val_loss'].compute().item():.4f}")
+        return self.metrics["val_loss"].compute().item()

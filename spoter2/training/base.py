@@ -1,10 +1,14 @@
 import torch
 from torchmetrics import MeanMetric
 from typing import Protocol
+from spoter2.base_logger import logger
 
 
 class Callback(Protocol):
     def __init__(self):
+        ...
+
+    def before_training(self):
         ...
 
     def __call__(self, trainer):
@@ -35,8 +39,18 @@ class BaseTrainer:
         self.scaler = torch.cuda.amp.GradScaler()
         self.callbacks = callbacks
 
-        self.val_loss = MeanMetric().to(self.device)
-        self.train_loss = MeanMetric().to(self.device)
+        self.metrics = {
+            "val_loss": MeanMetric().to(self.device),
+            "train_loss": MeanMetric().to(self.device)
+        }
+
+    def before_training_callbacks(self):
+        if self.callbacks is None:
+            return
+
+        logger.info("Callback info:")
+        for callback in self.callbacks:
+            callback.before_training()
 
     def apply_callbacks(self):
         if self.callbacks is None:
