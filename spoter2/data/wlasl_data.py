@@ -8,6 +8,7 @@ class WLASLDataset(Dataset):
     def __init__(self, path):
         raw_data = pd.read_csv(path)
         self.data = []
+        self.labels = []
 
         keypoint_names = []
         for name in raw_data.columns:
@@ -24,6 +25,8 @@ class WLASLDataset(Dataset):
                 y = [float(i) for i in row[f"{name}_Y"].strip("[]").split(",")]
                 keypoints.extend([x, y])
             keypoints = np.array(keypoints).T
+
+            self.labels.append(row.labels)
             self.data.append(keypoints)
 
     def __len__(self):
@@ -31,5 +34,6 @@ class WLASLDataset(Dataset):
 
     def __getitem__(self, idx):
         data = self.data[idx]
+        label = self.labels[idx]
 
-        return torch.tensor(data).float()
+        return {"data": torch.tensor(data).float(), "label": label}

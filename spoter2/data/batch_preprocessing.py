@@ -6,12 +6,15 @@ def collate_fn(batch: list):
     """
     batch: list([B, SEQ, DIM])
     """
-    pad_token = torch.zeros([1, batch[0].shape[-1]])
-    target_length = np.max([sample.shape[0] for sample in batch])
+    data = [d["data"] for d in batch]
+    labels = [d["label"] for d in batch]
+
+    pad_token = torch.zeros([1, data[0].shape[-1]])
+    target_length = np.max([sample.shape[0] for sample in data])
 
     _batch = []
     padding_idx = []
-    for sample in batch:
+    for sample in data:
         seq_len = sample.shape[0]
         pad_len = target_length - seq_len
 
@@ -22,5 +25,6 @@ def collate_fn(batch: list):
 
     return {
         "data": torch.stack(_batch),
-        "padding_idx": padding_idx
+        "padding_idx": padding_idx,
+        "labels": labels
     }

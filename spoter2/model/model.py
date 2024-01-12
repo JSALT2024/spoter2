@@ -72,7 +72,12 @@ class SPOTEREncoder(nn.Module):
             batch_targets.append(target)
         return data, batch_targets, batch_mask_idxs
 
-    def forward(self, x: torch.tensor, padding_idx: list | None = None, mask_ratio: float = 0.1):
+    def forward(
+            self, x: torch.tensor,
+            padding_idx: list | None = None,
+            mask_ratio: float = 0.1,
+            get_mask_idx: bool = False
+    ):
         """
         x: [B, SEQ, DIM]
         """
@@ -99,5 +104,8 @@ class SPOTEREncoder(nn.Module):
         for bi in range(batch_size):
             prediction = x[bi][mask_idxs[bi]]
             predictions.append(prediction)
+
+        if get_mask_idx:
+            return predictions, targets, mask_idxs
 
         return predictions, targets
