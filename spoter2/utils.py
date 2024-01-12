@@ -3,6 +3,8 @@ import torch
 import random
 import numpy as np
 import matplotlib.pyplot as plt
+import yaml
+import json
 
 
 def set_seed(seed=0, device='cuda'):
@@ -26,3 +28,21 @@ def plot_batch(data: torch.tensor):
     for i in range(batch_size):
         ax[i].imshow(data[i])
     plt.show()
+
+
+def load_yaml(path: str):
+    with open(path, "r") as f:
+        data = yaml.safe_load(f)
+    return data
+
+
+def load_json(path: str):
+    with open(path, "r") as f:
+        data = json.load(f)
+    return data
+
+
+def merge_configs(main_config: dict, config: dict):
+    _config = {k: v for k, v in config.items() if v is not None}
+    main_config.update(_config)
+    return main_config
