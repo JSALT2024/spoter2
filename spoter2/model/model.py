@@ -35,10 +35,13 @@ class SPOTEREncoder(nn.Module):
             self.pos_encoding = LearnablePositionalEncoding(max_frames, hidden_dim)
         elif pos_encoding == "learnable_normal":
             self.pos_encoding = LearnablePositionalEncoding(max_frames, hidden_dim, 0.02)
+        elif "learnable_normal" in pos_encoding:
+            _, std = pos_encoding.split("-")
+            self.pos_encoding = LearnablePositionalEncoding(max_frames, hidden_dim, float(std))
 
         # define tokens
-        self.mask_token = nn.Parameter(torch.rand(1, data_dim))
-        self.pad_token = nn.Parameter(torch.rand(1, data_dim))
+        self.mask_token = nn.Parameter(torch.rand(1, hidden_dim))
+        self.pad_token = nn.Parameter(torch.rand(1, hidden_dim))
 
     def __initialize_weights(self):
         torch.nn.init.normal_(self.mask_token, std=0.2)
@@ -54,23 +57,33 @@ class SPOTEREncoder(nn.Module):
             data[bi, padding_idx[bi]:, :] = padding
         return data
 
-    def mask_input(self, data: torch.tensor, padding_idx: list, mask_ratio: float = 0.1):
+    def get_mask_idxs(self, data: torch.tensor, padding_idx: list, mask_ratio: float = 0.1):
         batch_size, seq_len = data.shape[:2]
         batch_mask_idxs = []
-        batch_targets = []
         for bi in range(batch_size):
             mask_idxs = np.arange(padding_idx[bi])
             np.random.shuffle(mask_idxs)
             idx = np.ceil(len(mask_idxs) * mask_ratio).astype(int)
             mask_idxs = mask_idxs[:idx]
             mask_idxs = np.sort(mask_idxs)
-
-            target = data[bi][mask_idxs]
-            data[bi][mask_idxs] = self.mask_token.repeat(len(mask_idxs), 1)
-
             batch_mask_idxs.append(mask_idxs)
+        return batch_mask_idxs
+
+    def get_targets(self, data: torch.tensor, mask_idxs: list):
+        batch_size, seq_len = data.shape[:2]
+        batch_targets = []
+        for bi in range(batch_size):
+            target = data[bi][mask_idxs[bi]]
             batch_targets.append(target)
-        return data, batch_targets, batch_mask_idxs
+        return batch_targets
+
+    def mask_input(self, data: torch.tensor, mask_idxs: list):
+        batch_size, seq_len = data.shape[:2]
+        for bi in range(batch_size):
+            mask_idx = mask_idxs[bi]
+            mask_tokens = self.mask_token.repeat(len(mask_idx), 1)
+            data[bi][mask_idx] = mask_tokens.to(data[bi].dtype)
+        return data
 
     def forward(
             self, x: torch.tensor,
@@ -81,15 +94,18 @@ class SPOTEREncoder(nn.Module):
         """
         x: [B, SEQ, DIM]
         """
+        mask_idxs = self.get_mask_idxs(x, padding_idx, mask_ratio)
+        targets = self.get_targets(x, mask_idxs)
+
+        # input embedding
+        x = self.input_embedding(x)
+
         # prepare input
         batch_size, seq_len = x.shape[:2]
         if padding_idx is None:
             padding_idx = [seq_len] * batch_size
         x = self.replace_padding(x, padding_idx)
-        x, targets, mask_idxs = self.mask_input(x, padding_idx, mask_ratio)
-
-        # input embedding
-        x = self.input_embedding(x)
+        x = self.mask_input(x, mask_idxs)
 
         # add pos encoding
         if self.pos_encoding is not None:

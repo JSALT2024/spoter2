@@ -2,15 +2,15 @@ import argparse
 import os
 
 import numpy as np
+import wandb
+from spoter2.data import StructuredDummyDataset, WLASLDataset, collate_fn
+from spoter2.model import SPOTEREncoder
+from spoter2.training import (PretrainingPredictionExamples,
+                              PretrainingTrainer, SaveCheckpoint, WandbLogger)
+from spoter2.utils import load_yaml, merge_configs, set_seed
 from torch import nn, optim
 from torch.optim.lr_scheduler import CosineAnnealingLR, MultiStepLR
 from torch.utils.data import DataLoader
-
-import wandb
-from spoter2.data import StructuredDummyDataset, collate_fn, WLASLDataset
-from spoter2.model import SPOTEREncoder
-from spoter2.training import PretrainingTrainer, SaveCheckpoint, PretrainingPredictionExamples, WandbLogger
-from spoter2.utils import set_seed, load_yaml, merge_configs
 
 
 def get_args_parser():
@@ -99,11 +99,11 @@ def train(config):
     callbacks = [
         PretrainingPredictionExamples(5)
     ]
-    if "checkpoint_folder" in config:
+    if config.get("checkpoint_folder", ""):
         callbacks.append(SaveCheckpoint(config["checkpoint_folder"]))
     if "wandb_api_key" in config:
         os.environ['WANDB_API_KEY'] = config["wandb_api_key"]
-    if "project" in config:
+    if config.get("project", ""):
         # initialize wandb
         kwarg_names = ["group", "experiment", "entity", "tags"]
         wandb_kwargs = {n: config[n] for n in kwarg_names if n in config}
