@@ -26,5 +26,5 @@ def collate_fn(batch: list):
     return {
         "data": torch.stack(_batch),
         "padding_idx": padding_idx,
-        "labels": labels
+        "labels": torch.tensor(labels, dtype=torch.long)
     }

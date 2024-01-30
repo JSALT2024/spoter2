@@ -1,1 +1,3 @@
 from .model import SPOTEREncoder
+from .pretraining_model import SPOTEREncoderPreTraining
+from .classification_model import SPOTERDecoderClassification, SPOTERClassification

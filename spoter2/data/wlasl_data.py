@@ -36,4 +36,4 @@ class WLASLDataset(Dataset):
         data = self.data[idx]
         label = self.labels[idx]
 
-        return {"data": torch.tensor(data).float(), "label": label}
+        return {"data": torch.tensor(data).float(), "label": torch.tensor(label, dtype=torch.long)}
