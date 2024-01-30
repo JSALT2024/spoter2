@@ -2,6 +2,7 @@ import torch
 from torchmetrics import MeanMetric
 from typing import Protocol
 from spoter2.base_logger import logger
+import wandb
 
 
 class Callback(Protocol):
@@ -19,7 +20,7 @@ class BaseTrainer:
     def __init__(
             self,
             epochs: int,
-            model,
+            model: torch.nn.Module,
             train_loader,
             val_loader,
             criterion,
@@ -58,3 +59,38 @@ class BaseTrainer:
 
         for callback in self.callbacks:
             callback(self)
+
+    def backward_pass(self, batch_loss):
+        self.scaler.scale(batch_loss).backward()
+        self.scaler.step(self.optimizer)
+        self.scaler.update()
+        if self.scheduler is not None:
+            self.scheduler.step()
+
+    def train_epoch(self, dataloader) -> float:
+        raise NotImplemented()
+
+    def validate_epoch(self, dataloader) -> float:
+        raise NotImplemented()
+
+    def train(self):
+        self.before_training_callbacks()
+
+        train_loss = []
+        val_loss = []
+        for epoch in range(self.epochs):
+            self.epoch = epoch
+            [m.reset() for m in self.metrics.values()]
+
+            train_epoch_loss = self.train_epoch(self.train_loader)
+            val_epoch_loss = self.validate_epoch(self.val_loader)
+            train_loss.append(train_epoch_loss)
+            val_loss.append(val_epoch_loss)
+
+            self.apply_callbacks()
+
+        if wandb.run is not None:
+            wandb.finish()
+
+        return train_loss, val_loss
+

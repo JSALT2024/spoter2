@@ -21,28 +21,8 @@ class PretrainingTrainer(BaseTrainer):
             batch_loss.append(self.criterion(prd, trg))
         return torch.mean(torch.stack(batch_loss))
 
-    def train(self):
-        self.before_training_callbacks()
-
-        train_loss = []
-        val_loss = []
-        for epoch in range(self.epochs):
-            self.epoch = epoch
-            train_epoch_loss = self.train_epoch(self.train_loader)
-            val_epoch_loss = self.validate_epoch(self.val_loader)
-            train_loss.append(train_epoch_loss)
-            val_loss.append(val_epoch_loss)
-
-            self.apply_callbacks()
-
-        if wandb.run is not None:
-            wandb.finish()
-
-        return train_loss, val_loss
-
     def train_epoch(self, dataloader):
         self.model.train()
-        self.metrics["train_loss"].reset()
 
         pbar = tqdm(dataloader, desc=f"{self.epoch + 1}/{self.epochs}")
         for _, data in enumerate(pbar):
@@ -55,11 +35,7 @@ class PretrainingTrainer(BaseTrainer):
                 batch_loss = self.loss_calculation(predictions, targets)
 
             # backward pass
-            self.scaler.scale(batch_loss).backward()
-            self.scaler.step(self.optimizer)
-            self.scaler.update()
-            if self.scheduler is not None:
-                self.scheduler.step()
+            self.backward_pass(batch_loss)
 
             # update metrics
             self.metrics["train_loss"].update(batch_loss)
@@ -69,7 +45,6 @@ class PretrainingTrainer(BaseTrainer):
 
     def validate_epoch(self, dataloader):
         self.model.eval()
-        self.metrics["val_loss"].reset()
 
         pbar = tqdm(dataloader, desc=f"{self.epoch + 1}/{self.epochs}")
         for _, data in enumerate(pbar):

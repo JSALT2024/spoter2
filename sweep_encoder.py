@@ -3,7 +3,7 @@ import os
 from functools import partial
 
 import wandb
-from encoder_pre_training import get_args_parser, train
+from encoder_pretraining import get_args_parser, train
 from spoter2.utils import load_yaml, merge_configs
 
 
