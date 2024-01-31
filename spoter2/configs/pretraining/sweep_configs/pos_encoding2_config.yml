@@ -1,0 +1,19 @@
+method: grid
+metric:
+  goal: minimize
+  name: val_loss
+name: positional_encoding
+parameters:
+  positional_encoding:
+    values:
+      - learnable_normal-0.02
+      - learnable_normal-0.04
+      - learnable_normal-0.06
+      - learnable_normal-0.08
+      - learnable_normal-0.1
+      - learnable_uniform
+  seed:
+    values:
+      - 0
+      - 1
+      - 2

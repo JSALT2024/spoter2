@@ -1,0 +1,16 @@
+method: grid
+metric:
+  goal: maximize
+  name: val_accuracy
+name: classification_augment
+parameters:
+  model_name:
+    values:
+      - tiny
+      - small
+  gaussian_std:
+    values:
+      - 0.0
+      - 0.001
+      - 0.005
+      - 0.01
