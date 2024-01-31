@@ -55,14 +55,16 @@ def get_dataloaders(config, train_dataset, val_dataset):
         train_dataset,
         shuffle=True,
         batch_size=config["batch_size"],
-        collate_fn=collate_fn
+        collate_fn=collate_fn,
+        num_workers=config["num_workers"]
     )
 
     val_loader = DataLoader(
         val_dataset,
         shuffle=False,
         batch_size=config["batch_size"],
-        collate_fn=collate_fn
+        collate_fn=collate_fn,
+        num_workers=config["num_workers"]
     )
 
     return train_loader, val_loader
