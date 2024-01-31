@@ -5,10 +5,11 @@ import numpy as np
 
 
 class WLASLDataset(Dataset):
-    def __init__(self, path):
+    def __init__(self, path: str, transforms=None):
         raw_data = pd.read_csv(path)
         self.data = []
         self.labels = []
+        self.transforms = transforms
 
         keypoint_names = []
         for name in raw_data.columns:
@@ -34,6 +35,12 @@ class WLASLDataset(Dataset):
 
     def __getitem__(self, idx):
         data = self.data[idx]
-        label = self.labels[idx]
+        data = torch.tensor(data).float()
 
-        return {"data": torch.tensor(data).float(), "label": torch.tensor(label, dtype=torch.long)}
+        label = self.labels[idx]
+        torch.tensor(label, dtype=torch.long)
+
+        if self.transforms:
+            data = self.transforms(data)
+
+        return {"data": data, "label": label}
