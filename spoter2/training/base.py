@@ -64,8 +64,7 @@ class BaseTrainer:
         self.scaler.scale(batch_loss).backward()
         self.scaler.step(self.optimizer)
         self.scaler.update()
-        if self.scheduler is not None:
-            self.scheduler.step()
+
 
     def train_epoch(self, dataloader) -> float:
         raise NotImplemented()
@@ -84,6 +83,12 @@ class BaseTrainer:
 
             train_epoch_loss = self.train_epoch(self.train_loader)
             val_epoch_loss = self.validate_epoch(self.val_loader)
+
+            # update learning rate
+            if self.scheduler is not None:
+                self.scheduler.step()
+
+            # update metrics
             train_loss.append(train_epoch_loss)
             val_loss.append(val_epoch_loss)
 
