@@ -21,6 +21,10 @@ class How2SignDataset(Dataset):
 
         self.video_path = video_file_path
         self.json_pose_path = json_pose_path
+
+        self.json_paths = {}
+        self.video_names = {}
+
         self.face_landmarks = [101, 214,  # left cheek top, bot
                                330, 434,  # right cheek top, bot
                                197, 195, 4, 1,  # nose rigid1, rigid2, flex, tip
@@ -34,23 +38,21 @@ class How2SignDataset(Dataset):
                                ]
         self.transform = transform
 
-        self.data = self.load_data()
+        self.get_json_names()
+        self.get_video_names()
 
     def __getitem__(self, index):
-        """
-        args: index (int): Index
-        returns:
-            sample (dict): dict of pose features and metadata
-        """
+
+        data = self.load_data(idx=index)
         if self.transform:
-            return self.transform(self.data[index]['KPI'])
+            return self.transform(data['KPI']), data['SENTENCE']
         else:
-            return self.data[index]['KPI']
+            return data['KPI'], data['SENTENCE']
 
     def __len__(self):
-        return len(self.data)
+        return len(self.json_paths.keys())
 
-    def get_json_data(self):
+    def get_json_names(self):
         """
         Load data from json files that are in file self.json_pose_path.
         returns:
@@ -62,18 +64,13 @@ class How2SignDataset(Dataset):
         if not os.path.isdir(self.json_pose_path):
             raise ValueError(f'Error> json_pose_path is not a directory \n {self.json_pose_path} ')
 
-        json_paths = []
+
+        idx = 0
+
         for filename in os.listdir(self.json_pose_path):
             if filename.endswith(".json"):
-                json_paths.append(os.path.join(self.json_pose_path, filename))
-
-        json_data = []
-        for file_path in json_paths:
-            f = open(file_path, 'r', encoding='utf-8')
-            json_data.append(json.load(f))
-            f.close()
-
-        return json_data
+                self.json_paths[idx] = os.path.join(self.json_pose_path, filename)
+                idx += 1
 
     def get_video_names(self):
         """
@@ -82,90 +79,74 @@ class How2SignDataset(Dataset):
             video_paths (list): list of .mp4 files available in self.video_path
         """
         if self.video_path is None:
-            return None
+            return
 
         if not os.path.exists(self.video_path):
             raise ValueError(f'Error: video_path does not exist \n {self.video_path}')
         if not os.path.isdir(self.video_path):
             raise ValueError(f'Error> video_path is not a directory \n {self.video_path} ')
 
-        video_names = []
         for filename in os.listdir(self.video_path):
             if filename.endswith(".mp4"):
-                video_names.append(filename.strip('.mp4'))
+                self.video_names[filename.strip('.mp4')] = None
 
-        return video_names
+    def load_data(self, idx=0):
 
-    def combine_data(self, json_data, video_names):
-        """
-        Insert video paths into json_data. If video_path is None, return json_data as is.
-        If video_path does not contain video with name from json_data, delete entry from json_data.
-        args:
-            json_data (dict): dict of json data
-            video_paths (list): list of video paths
-        """
+        f = open(self.json_paths[idx], 'r', encoding='utf-8')
+        json_data = json.load(f)
+        f.close()
+
 
         if self.video_path is None:
-            return json_data
+            pass
+        elif json_data['SENTENCE_NAME'] in self.video_names:
+            json_data['VIDEO_PATH'] = os.path.join(self.video_path + json_data['SENTENCE_NAME'] + '.mp4')
+        else:
+            warnings.warn(
+                f'Warning: video_path does not contain video with name {json_data["SENTENCE_NAME"]}')
 
-        delete_idxs = []
-        for idx, json_entry in enumerate(json_data):
-            if json_entry['SENTENCE_NAME'] in video_names:
-                json_data[idx]['VIDEO_PATH'] = os.path.join(self.video_path + json_entry['SENTENCE_NAME'] + '.mp4')
+
+        data_entry = {'KPI': [],
+                      'SENTENCE': json_data['SENTENCE'],
+                      'metadata': {'VIDEO_NAME': json_data['VIDEO_NAME'],
+                                   'SENTENCE_ID': json_data['SENTENCE_NAME'],
+                                   'START': json_data['START'],
+                                   'END': json_data['END'],
+                                   'VIDEO_PATH': json_data['VIDEO_PATH'] if 'VIDEO_PATH' in json_data else None},
+                      'plot_metadata': {'POSE_LANDMARKS': [],
+                                        'RIGHT_HAND_LANDMARKS': [],
+                                        'LEFT_HAND_LANDMARKS': [],
+                                        'FACE_LANDMARKS': []}
+                      }
+
+        kpi_mat = np.zeros((len(json_data['joints']), 214))
+        for frame_id in json_data['joints']:
+
+            pose_vector = np.array(json_data['joints'][frame_id]['pose_landmarks'])[:, 0:2]
+
+            if len(json_data['joints'][frame_id]['right_hand_landmarks']) == 0:
+                right_hand_vector = np.zeros((21, 2))
             else:
-                warnings.warn(f'Warning: video_path does not contain video with name {json_entry["SENTENCE_NAME"]} \n SKIPING ENTRY.')
-                delete_idxs.append(idx)
-        for idx in sorted(delete_idxs, reverse=True):
-            del json_data[idx]
+                right_hand_vector = np.array(json_data['joints'][frame_id]['right_hand_landmarks'])[:, 0:2]
 
-        return json_data
+            if len(json_data['joints'][frame_id]['left_hand_landmarks']) == 0:
+                left_hand_vector = np.zeros((21, 2))
+            else:
+                left_hand_vector = np.array(json_data['joints'][frame_id]['left_hand_landmarks'])[:, 0:2]
 
-    def load_data(self):
+            face_vector = np.array(itemgetter(*self.face_landmarks)(json_data['joints'][frame_id]['face_landmarks']))[:, 0:2]
 
-        video_names = self.get_video_names()
-        json_data = self.get_json_data()
+            kpi_mat[int(frame_id), :] = np.concatenate((pose_vector.flatten(), right_hand_vector.flatten(),
+                                                        left_hand_vector.flatten(), face_vector.flatten()), axis=0)
 
-        combined_data = self.combine_data(json_data, video_names)
 
-        data_out = []
-        for json_entry in combined_data:
-            data_entry = {'KPI': [],
-                          'SENTENCE': json_entry['SENTENCE'],
-                          'metadata': {'VIDEO_NAME': json_entry['VIDEO_NAME'],
-                                       'SENTENCE_ID': json_entry['SENTENCE_NAME'],
-                                       'START': json_entry['START'],
-                                       'END': json_entry['END'],
-                                       'VIDEO_PATH': json_entry['VIDEO_PATH'] if 'VIDEO_PATH' in json_entry else None},
-                          'plot_metadata': {'POSE_LANDMARKS': [],
-                                            'RIGHT_HAND_LANDMARKS': [],
-                                            'LEFT_HAND_LANDMARKS': [],
-                                            'FACE_LANDMARKS': []}
-                          }
+            data_entry['plot_metadata']['POSE_LANDMARKS'].append(json_data['joints'][frame_id]['pose_landmarks'])
+            data_entry['plot_metadata']['RIGHT_HAND_LANDMARKS'].append(json_data['joints'][frame_id]['right_hand_landmarks'])
+            data_entry['plot_metadata']['LEFT_HAND_LANDMARKS'].append(json_data['joints'][frame_id]['left_hand_landmarks'])
+            data_entry['plot_metadata']['FACE_LANDMARKS'].append(json_data['joints'][frame_id]['face_landmarks'])
 
-            for frame_id in json_entry['joints']:
-
-                pose_vector = np.array(json_entry['joints'][frame_id]['pose_landmarks'])[:, 0:2]
-
-                if len(json_entry['joints'][frame_id]['right_hand_landmarks']) == 0:
-                    right_hand_vector = np.zeros((21, 2))
-                else:
-                    right_hand_vector = np.array(json_entry['joints'][frame_id]['right_hand_landmarks'])[:, 0:2]
-
-                if len(json_entry['joints'][frame_id]['left_hand_landmarks']) == 0:
-                    left_hand_vector = np.zeros((21, 2))
-                else:
-                    left_hand_vector = np.array(json_entry['joints'][frame_id]['left_hand_landmarks'])[:, 0:2]
-
-                face_vector = np.array(itemgetter(*self.face_landmarks)(json_entry['joints'][frame_id]['face_landmarks']))[:, 0:2]
-
-                data_entry['KPI'].append(np.concatenate((pose_vector.flatten(), right_hand_vector.flatten(), left_hand_vector.flatten(), face_vector.flatten()), axis=0))
-                data_entry['plot_metadata']['POSE_LANDMARKS'].append(json_entry['joints'][frame_id]['pose_landmarks'])
-                data_entry['plot_metadata']['RIGHT_HAND_LANDMARKS'].append(json_entry['joints'][frame_id]['right_hand_landmarks'])
-                data_entry['plot_metadata']['LEFT_HAND_LANDMARKS'].append(json_entry['joints'][frame_id]['left_hand_landmarks'])
-                data_entry['plot_metadata']['FACE_LANDMARKS'].append(json_entry['joints'][frame_id]['face_landmarks'])
-
-            data_out.append(data_entry)
-        return data_out
+        data_entry['KPI'] = kpi_mat
+        return data_entry
 
     def plot_points2video(self, index, video_name):
         if self.video_path is None:
@@ -222,7 +203,7 @@ class How2SignDataset(Dataset):
         plt.show()
 
 if __name__ == '__main__':
-    prefix = 'all'
+    prefix = 'person2'
 
     json_path = '../datasets/'+prefix
 
@@ -230,21 +211,19 @@ if __name__ == '__main__':
 
     start = datetime.datetime.now()
     data_val = How2SignDataset(json_pose_path=json_path,
-                               video_file_path=video_path,
+                               video_file_path=None,
                                transform=None)
 
     print(datetime.datetime.now()-start)
 
     # data_val.plot_points2video(0, prefix+'_0.avi')
     # data_val.plot_points(1)
-    # data_val.plot_points2video(1, prefix+'_1.avi')
-    # data_val.plot_points2video(2, prefix+'_2.avi')
-    # data_val.plot_points2video(3, prefix+'_3.avi')
 
     print(data_val.__len__())
 
     dataloader = DataLoader(data_val, batch_size=1, shuffle=True, num_workers=2)
     for i_batch, sample_batched in enumerate(dataloader):
         print(i_batch, len(sample_batched))
+        print(sample_batched[0].shape, sample_batched[1])
         if i_batch == 4:
             break
