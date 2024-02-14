@@ -52,7 +52,7 @@ if __name__ == "__main__":
         sweep_id = args.sweep_id
     else:
         # initialize wandb
-        kwarg_names = ["group", "experiment", "entity", "tags"]
+        kwarg_names = ["experiment", "entity"]
         wandb_kwargs = {n: config[n] for n in kwarg_names if n in config}
         sweep_id = wandb.sweep(sweep=sweep_config, project=args.project, **wandb_kwargs)
     wandb.agent(sweep_id, partial(main, config), count=100)
