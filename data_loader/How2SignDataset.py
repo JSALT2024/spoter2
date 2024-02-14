@@ -1,3 +1,4 @@
+import numpy as np
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset
 import json
@@ -5,27 +6,35 @@ import os
 import cv2
 import warnings
 import matplotlib.pyplot as plt
+import datetime
+from operator import itemgetter
 
 class How2SignDataset(Dataset):
     """ Custom dataset for how2sign dataset on pose features.
     args:
         json_pose_path (string): Path to dir with JSON annotations.
-        video_path (string): Path to dir with video files.
+        video_file_path (string, optional): Path to dir with video files.
         transform (callable, optional): Optional transform to be applied
             on a sample.
-        use_appearance (bool): If True, the dataset will return video frames as well as pose features.
     """
-    def __init__(self, json_pose_path, video_file_path=None, transform=None, use_appearance=True): # TODO data2memory or live loading once visual is ready
+    def __init__(self, json_pose_path, video_file_path=None, transform=None):
 
         self.video_path = video_file_path
         self.json_pose_path = json_pose_path
-        self.use_appearance = use_appearance
+        self.face_landmarks = [101, 214,  # left cheek top, bot
+                               330, 434,  # right cheek top, bot
+                               197, 195, 4, 1,  # nose rigid1, rigid2, flex, tip
+                               295, 282, 283,  # right eyebrow
+                               53, 52, 65,  # left eyebrow
+                               263, 386, 362, 374,  # right eye
+                               33, 159, 133, 145,  # left eye
+                               40, 270, 91, 321,  # outer mouth sqruare
+                               311, 81, 178, 402,  # inner mouth square
+                               78, 308   #inner mouth corners
+                               ]
         self.transform = transform
 
-        if use_appearance:
-            self.data = self.load_data_all()
-        else:
-            self.data = self.load_data_json_only()
+        self.data = self.load_data()
 
     def __getitem__(self, index):
         """
@@ -33,12 +42,10 @@ class How2SignDataset(Dataset):
         returns:
             sample (dict): dict of pose features and metadata
         """
-        if self.use_appearance:
-            pass
         if self.transform:
             return self.transform(self.data[index]['KPI'])
         else:
-            return self.data[index]['KPI']   #TODO tohle chce kuba na pretrain
+            return self.data[index]['KPI']
 
     def __len__(self):
         return len(self.data)
@@ -74,6 +81,9 @@ class How2SignDataset(Dataset):
         returns:
             video_paths (list): list of .mp4 files available in self.video_path
         """
+        if self.video_path is None:
+            return None
+
         if not os.path.exists(self.video_path):
             raise ValueError(f'Error: video_path does not exist \n {self.video_path}')
         if not os.path.isdir(self.video_path):
@@ -88,24 +98,29 @@ class How2SignDataset(Dataset):
 
     def combine_data(self, json_data, video_names):
         """
-        Insert video paths into json_data.
+        Insert video paths into json_data. If video_path is None, return json_data as is.
+        If video_path does not contain video with name from json_data, delete entry from json_data.
         args:
             json_data (dict): dict of json data
             video_paths (list): list of video paths
         """
+
+        if self.video_path is None:
+            return json_data
+
         delete_idxs = []
         for idx, json_entry in enumerate(json_data):
-            if json_entry['VIDEO_NAME'] in video_names:
-                json_data[idx]['VIDEO_PATH'] = os.path.join(self.video_path + json_entry['VIDEO_NAME'] + '.mp4')
+            if json_entry['SENTENCE_NAME'] in video_names:
+                json_data[idx]['VIDEO_PATH'] = os.path.join(self.video_path + json_entry['SENTENCE_NAME'] + '.mp4')
             else:
-                warnings.warn(f'Warning: video_path does not contain video with name {json_entry["VIDEO_NAME"]} \n SKIPING ENTRY.')
+                warnings.warn(f'Warning: video_path does not contain video with name {json_entry["SENTENCE_NAME"]} \n SKIPING ENTRY.')
                 delete_idxs.append(idx)
         for idx in sorted(delete_idxs, reverse=True):
             del json_data[idx]
 
         return json_data
 
-    def load_data_all(self):
+    def load_data(self):
 
         video_names = self.get_video_names()
         json_data = self.get_json_data()
@@ -115,162 +130,121 @@ class How2SignDataset(Dataset):
         data_out = []
         for json_entry in combined_data:
             data_entry = {'KPI': [],
-                          'FRAMES': [],
                           'SENTENCE': json_entry['SENTENCE'],
                           'metadata': {'VIDEO_NAME': json_entry['VIDEO_NAME'],
-                                       'SENTENCE_ID': json_entry['SENTENCE_ID'],
-                                       'START': json_entry['START_REALIGNED'],
-                                       'END': json_entry['END_REALIGNED'],
-                                       'VIDEO_PATH': json_entry['VIDEO_PATH']},
+                                       'SENTENCE_ID': json_entry['SENTENCE_NAME'],
+                                       'START': json_entry['START'],
+                                       'END': json_entry['END'],
+                                       'VIDEO_PATH': json_entry['VIDEO_PATH'] if 'VIDEO_PATH' in json_entry else None},
                           'plot_metadata': {'POSE_LANDMARKS': [],
                                             'RIGHT_HAND_LANDMARKS': [],
                                             'LEFT_HAND_LANDMARKS': [],
                                             'FACE_LANDMARKS': []}
                           }
 
-            cap = cv2.VideoCapture(json_entry['VIDEO_PATH'])
-
-            # Check if the video file opened successfully
-            if not cap.isOpened():
-                warnings.warn(f'Error: Couldnt open the video file. \n {video_path} \n Continuing with other videos.')
-                continue
-
-            # debug info
-            # print(f" video len: {int(cap.get(cv2.CAP_PROP_FRAME_COUNT))}")
-            # print(f" json len: {len(json_entry['joints'])}")
-
             for frame_id in json_entry['joints']:
-                pose_vector = sum(json_entry['joints'][frame_id]['pose_landmarks'], []) + \
-                              sum(json_entry['joints'][frame_id]['right_hand_landmarks'], []) + \
-                              sum(json_entry['joints'][frame_id]['left_hand_landmarks'], [])
-                # frame['face_landmarks']
-                data_entry['KPI'].append(pose_vector)
+
+                pose_vector = np.array(json_entry['joints'][frame_id]['pose_landmarks'])[:, 0:2]
+
+                if len(json_entry['joints'][frame_id]['right_hand_landmarks']) == 0:
+                    right_hand_vector = np.zeros((21, 2))
+                else:
+                    right_hand_vector = np.array(json_entry['joints'][frame_id]['right_hand_landmarks'])[:, 0:2]
+
+                if len(json_entry['joints'][frame_id]['left_hand_landmarks']) == 0:
+                    left_hand_vector = np.zeros((21, 2))
+                else:
+                    left_hand_vector = np.array(json_entry['joints'][frame_id]['left_hand_landmarks'])[:, 0:2]
+
+                face_vector = np.array(itemgetter(*self.face_landmarks)(json_entry['joints'][frame_id]['face_landmarks']))[:, 0:2]
+
+                data_entry['KPI'].append(np.concatenate((pose_vector.flatten(), right_hand_vector.flatten(), left_hand_vector.flatten(), face_vector.flatten()), axis=0))
                 data_entry['plot_metadata']['POSE_LANDMARKS'].append(json_entry['joints'][frame_id]['pose_landmarks'])
                 data_entry['plot_metadata']['RIGHT_HAND_LANDMARKS'].append(json_entry['joints'][frame_id]['right_hand_landmarks'])
                 data_entry['plot_metadata']['LEFT_HAND_LANDMARKS'].append(json_entry['joints'][frame_id]['left_hand_landmarks'])
                 data_entry['plot_metadata']['FACE_LANDMARKS'].append(json_entry['joints'][frame_id]['face_landmarks'])
 
-                ret, frame = cap.read()
-                if not ret:
-                    warnings.warn(f'Error: Couldn\'t read the frame. \n {video_path} \n Continuing with other videos.')
-                    continue
-                data_entry['FRAMES'].append(frame)
-
             data_out.append(data_entry)
         return data_out
 
-    def load_data_json_only(self):
-
-        json_data = self.get_json_data()
-
-        data_out = []
-        for json_entry in json_data:
-            data_entry = {'KPI': [],
-                          'SENTENCE': json_entry['SENTENCE'],
-                          'metadata': {'VIDEO_NAME': json_entry['VIDEO_NAME'],
-                                       'SENTENCE_ID': json_entry['SENTENCE_ID'],
-                                       'START': json_entry['START_REALIGNED'],
-                                       'END': json_entry['END_REALIGNED'], }}
-            for frame_id in json_entry['joints']:
-                pose_vector = sum(json_entry['joints'][frame_id]['pose_landmarks'],[]) + \
-                               sum(json_entry['joints'][frame_id]['right_hand_landmarks'],[]) + \
-                               sum(json_entry['joints'][frame_id]['left_hand_landmarks'],[])
-                               #frame['face_landmarks'] #TODO face landmarks
-                data_entry['KPI'].append(pose_vector)
-
-            data_out.append(data_entry)
-        return data_out
-
-    def plot_points(self, index): #TODO finish once visual extraction is ready
+    def plot_points2video(self, index, video_name):
+        if self.video_path is None:
+            raise ValueError(f'Error: video_path is None, cannot plot. \n Aborting.')
         item = self.__getitem__(index)
-        img = item['FRAMES'][5]
         plot_metadata = item['plot_metadata']
 
-        inner_mouth = [78,191,80,81,82,13,312,311,310,415,308,324,318,402,317,14,87,178,88,95]
-        middle_mouth = [11,302,303,304,408,292,307,320,404,315,16,85,180,90,77,76,184,74,73,72]
-        outer_mouth = [0,267,269,270,409,291,375,321,405,314,17,84,181,91,146,61,185,40,39,37]
+        cap = cv2.VideoCapture(item['metadata']['VIDEO_PATH'])
 
-        nose = [1,4,5,195,197,6,168]
-        left_eye = [159,145,33,133,153,144,159]
-        right_eye = [386,374,263,362,382,373,386]
+        # Check if the video file opened successfully
+        if not cap.isOpened():
+            raise ValueError(f'Error: Couldnt open the video file. \n {video_path} \n Aborting.')
 
-        left_eye_arch = [225, 224, 223, 222, 221]
-        right_eye_arch = [445,444,443,442,441]
+        ret, frame = cap.read()
 
-        left_eyebrow = [285,295,282,283,276,293,334,296,336]
-        right_eyebrow = [55,107,66,105,63,46,53,52,65]
+        height, width, layers = frame.shape
+        idx = 0
+        video = cv2.VideoWriter(video_name, 0, 3, (width, height))
 
-        forehead_all = [69,66,107,108,151,9,8,336,337,299,296]
-        forehead_outline = [103,104,105,65,55,193,168,417,285,295,334,333,332,297,338,10,109,67]
+        while ret:
+            frame = self.anotate_img(frame, plot_metadata, idx, (125, 255, 10))
+            video.write(frame)
+            ret, frame = cap.read()
+            idx += 1
 
-        face_contour = [152,148,176,149,150,136,172,58,132,93,234,127,162,21,54,103,67,109,10,338,297,332,284,251,389,356,454,323,361,288,397,365,379,378,400,377]
+        cap.release()
+        cv2.destroyAllWindows()
+        video.release()
 
-        #TODO ASK
-        # left_cheek = [101,123,137,93,132,58,172,135,214,207,205]
-        # left_cheek_in = [50,147,187,192,213,177,215,138]
-        # right_cheek = []
+    def anotate_img(self, img, metadata, idx, color):
+        for i in self.face_landmarks:
+            img = cv2.circle(img, (int(metadata['FACE_LANDMARKS'][idx][i][0]),
+                                   int(metadata['FACE_LANDMARKS'][idx][i][1])),
+                             radius=0, color=color, thickness=-1)
+        return img
 
-        #EYE PLOT
-        for i in left_eye:
-            plt.plot(plot_metadata['FACE_LANDMARKS'][5][i][0],
-                     plot_metadata['FACE_LANDMARKS'][5][i][1],
+    def plot_points(self, item_index=0):
+        item = self.__getitem__(item_index)
+        plot_metadata = item['plot_metadata']
+
+        cap = cv2.VideoCapture(item['metadata']['VIDEO_PATH'])
+        # Check if the video file opened successfully
+        if not cap.isOpened():
+            raise ValueError(f'Error: Couldnt open the video file. \n {video_path} \n Aborting.')
+
+        ret, frame = cap.read()
+        cap.release()
+
+        for i in self.face_landmarks:
+            plt.plot(plot_metadata['FACE_LANDMARKS'][0][i][0],
+                     plot_metadata['FACE_LANDMARKS'][0][i][1],
                      marker='.', color="g", markersize=1)
-
-        for i in left_eye_arch:
-            plt.plot(plot_metadata['FACE_LANDMARKS'][5][i][0],
-                     plot_metadata['FACE_LANDMARKS'][5][i][1],
-                     marker='.', color="r", markersize=1)
-
-        for i in left_eyebrow:
-            plt.plot(plot_metadata['FACE_LANDMARKS'][5][i][0],
-                     plot_metadata['FACE_LANDMARKS'][5][i][1],
-                     marker='.', color="b", markersize=1)
-
-        for i in right_eye:
-            plt.plot(plot_metadata['FACE_LANDMARKS'][5][i][0],
-                     plot_metadata['FACE_LANDMARKS'][5][i][1],
-                     marker='.', color="g", markersize=1)
-
-        for i in right_eye_arch:
-            plt.plot(plot_metadata['FACE_LANDMARKS'][5][i][0],
-                     plot_metadata['FACE_LANDMARKS'][5][i][1],
-                     marker='.', color="r", markersize=1)
-
-        for i in right_eyebrow:
-            plt.plot(plot_metadata['FACE_LANDMARKS'][5][i][0],
-                     plot_metadata['FACE_LANDMARKS'][5][i][1],
-                     marker='.', color="b", markersize=1)
-        plt.imshow(img, interpolation=None)
-        plt.show(interpolation=None)
-
-
-        # MOUTH PLOT
-        for i in outer_mouth:
-            plt.plot(plot_metadata['FACE_LANDMARKS'][5][i][0],
-                     plot_metadata['FACE_LANDMARKS'][5][i][1],
-                     marker='.', color="r", markersize=1)
-
-        for i in middle_mouth:
-            plt.plot(plot_metadata['FACE_LANDMARKS'][5][i][0],
-                     plot_metadata['FACE_LANDMARKS'][5][i][1],
-                     marker='.', color="g", markersize=1)
-
-        for i in inner_mouth:
-            plt.plot(plot_metadata['FACE_LANDMARKS'][5][i][0],
-                     plot_metadata['FACE_LANDMARKS'][5][i][1],
-                     marker='.', color="b", markersize=1)
-        plt.imshow(img, interpolation=None)
-        plt.show(interpolation=None)
-
+        plt.imshow(frame[:, :, ::-1], interpolation='none')
+        plt.show()
 
 if __name__ == '__main__':
-    json_path = '../datasets/'
+    prefix = 'all'
+
+    json_path = '../datasets/'+prefix
+
     video_path = '/home/toofy/JSALT_videos/'
 
+    start = datetime.datetime.now()
     data_val = How2SignDataset(json_pose_path=json_path,
                                video_file_path=video_path,
-                               transform=None,
-                               use_appearance=True)
+                               transform=None)
 
-    data_val.plot_points(0)
+    print(datetime.datetime.now()-start)
+
+    # data_val.plot_points2video(0, prefix+'_0.avi')
+    # data_val.plot_points(1)
+    # data_val.plot_points2video(1, prefix+'_1.avi')
+    # data_val.plot_points2video(2, prefix+'_2.avi')
+    # data_val.plot_points2video(3, prefix+'_3.avi')
+
     print(data_val.__len__())
+
+    dataloader = DataLoader(data_val, batch_size=1, shuffle=True, num_workers=2)
+    for i_batch, sample_batched in enumerate(dataloader):
+        print(i_batch, len(sample_batched))
+        if i_batch == 4:
+            break
