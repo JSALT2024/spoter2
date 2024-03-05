@@ -202,6 +202,26 @@ class How2SignDataset(Dataset):
         plt.imshow(frame[:, :, ::-1], interpolation='none')
         plt.show()
 
+class NoseNormalize(object):
+    def __call__(self, sample):
+        for index in range(0, len(sample)):
+            kpi_x = sample[index, 0::2]
+            kpi_y = sample[index, 1::2]
+            x_max = np.max(kpi_x)
+            y_max = np.max(kpi_y)
+            x_min = np.min(kpi_x)
+            y_min = np.min(kpi_y)
+
+            kpi_x = (kpi_x - (x_max + x_min) / 2) / ((x_max - x_min)/2)
+            kpi_y = (kpi_y - (y_max + y_min) / 2) / ((y_max - y_min)/2)
+
+            sample[index, 0::2] = kpi_x
+            sample[index, 1::2] = kpi_y
+
+        return sample
+
+
+
 if __name__ == '__main__':
     prefix = 'person2'
 
@@ -212,7 +232,7 @@ if __name__ == '__main__':
     start = datetime.datetime.now()
     data_val = How2SignDataset(json_pose_path=json_path,
                                video_file_path=None,
-                               transform=None)
+                               transform=NoseNormalize())
 
     print(datetime.datetime.now()-start)
 
