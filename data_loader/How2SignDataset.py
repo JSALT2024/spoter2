@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import datetime
 from operator import itemgetter
 
+
 class How2SignDataset(Dataset):
     """ Custom dataset for how2sign dataset on pose features.
     args:
@@ -17,6 +18,7 @@ class How2SignDataset(Dataset):
         transform (callable, optional): Optional transform to be applied
             on a sample.
     """
+
     def __init__(self, json_pose_path, video_file_path=None, transform=None):
 
         self.video_path = video_file_path
@@ -34,7 +36,7 @@ class How2SignDataset(Dataset):
                                33, 159, 133, 145,  # left eye
                                40, 270, 91, 321,  # outer mouth sqruare
                                311, 81, 178, 402,  # inner mouth square
-                               78, 308   #inner mouth corners
+                               78, 308  # inner mouth corners
                                ]
         self.transform = transform
 
@@ -63,7 +65,6 @@ class How2SignDataset(Dataset):
             raise ValueError(f'Error: json_pose_path does not exist \n {self.json_pose_path}')
         if not os.path.isdir(self.json_pose_path):
             raise ValueError(f'Error> json_pose_path is not a directory \n {self.json_pose_path} ')
-
 
         idx = 0
 
@@ -96,7 +97,6 @@ class How2SignDataset(Dataset):
         json_data = json.load(f)
         f.close()
 
-
         if self.video_path is None:
             pass
         elif json_data['SENTENCE_NAME'] in self.video_names:
@@ -104,7 +104,6 @@ class How2SignDataset(Dataset):
         else:
             warnings.warn(
                 f'Warning: video_path does not contain video with name {json_data["SENTENCE_NAME"]}')
-
 
         data_entry = {'KPI': [],
                       'SENTENCE': json_data['SENTENCE'],
@@ -134,11 +133,10 @@ class How2SignDataset(Dataset):
             else:
                 left_hand_vector = np.array(json_data['joints'][frame_id]['left_hand_landmarks'])[:, 0:2]
 
-            face_vector = np.array(itemgetter(*self.face_landmarks)(json_data['joints'][frame_id]['face_landmarks']))[:, 0:2]
+            face_vector = np.array(itemgetter(*self.face_landmarks)(json_data['joints'][frame_id]['face_landmarks']))[:,0:2]
 
             kpi_mat[int(frame_id), :] = np.concatenate((pose_vector.flatten(), right_hand_vector.flatten(),
                                                         left_hand_vector.flatten(), face_vector.flatten()), axis=0)
-
 
             data_entry['plot_metadata']['POSE_LANDMARKS'].append(json_data['joints'][frame_id]['pose_landmarks'])
             data_entry['plot_metadata']['RIGHT_HAND_LANDMARKS'].append(json_data['joints'][frame_id]['right_hand_landmarks'])
@@ -202,6 +200,7 @@ class How2SignDataset(Dataset):
         plt.imshow(frame[:, :, ::-1], interpolation='none')
         plt.show()
 
+
 class NoseNormalize(object):
     def __call__(self, sample):
         for index in range(0, len(sample)):
@@ -212,8 +211,8 @@ class NoseNormalize(object):
             x_min = np.min(kpi_x)
             y_min = np.min(kpi_y)
 
-            kpi_x = (kpi_x - (x_max + x_min) / 2) / ((x_max - x_min)/2)
-            kpi_y = (kpi_y - (y_max + y_min) / 2) / ((y_max - y_min)/2)
+            kpi_x = (kpi_x - (x_max + x_min) / 2) / ((x_max - x_min) / 2)
+            kpi_y = (kpi_y - (y_max + y_min) / 2) / ((y_max - y_min) / 2)
 
             sample[index, 0::2] = kpi_x
             sample[index, 1::2] = kpi_y
@@ -221,11 +220,55 @@ class NoseNormalize(object):
         return sample
 
 
+def local_keypoint_normalization(joints: dict, landmarks: str, select_idx: list = [], padding: float = 0.1) -> dict:
+    frames_keypoints = np.array([np.array(frame[landmarks])[:, :2] for frame in joints.values() if frame[landmarks]])
+    frame_labels = [k for k, frame in joints.items() if frame[landmarks]]
+
+    if select_idx:
+        frames_keypoints = frames_keypoints[:, select_idx, :]
+
+    # move to origin
+    xmin = np.min(frames_keypoints[:, :, 0], axis=1)
+    ymin = np.min(frames_keypoints[:, :, 1], axis=1)
+
+    frames_keypoints[:, :, 0] -= xmin[:, np.newaxis]
+    frames_keypoints[:, :, 1] -= ymin[:, np.newaxis]
+
+    # pad to square
+    xmax = np.max(frames_keypoints[:, :, 0], axis=1)
+    ymax = np.max(frames_keypoints[:, :, 1], axis=1)
+
+    dif_full = np.abs(xmax - ymax)
+    dif = np.floor(dif_full / 2)
+
+    for i in range(len(dif)):
+        if xmax[i] > ymax[i]:
+            ymax[i] += dif_full[i]
+            frames_keypoints[i, :, 1] += dif[i]
+        else:
+            xmax[i] += dif_full[i]
+            frames_keypoints[i, :, 0] += dif[i]
+
+    # add padding to all sides
+    side_size = np.max([xmax, ymax], axis=0)
+    padding = side_size * padding
+
+    frames_keypoints += padding[:, np.newaxis, np.newaxis]
+    xmax += padding * 2
+    ymax += padding * 2
+
+    # normalize to [-1, 1]
+    frames_keypoints /= xmax[:, np.newaxis, np.newaxis]
+    frames_keypoints = frames_keypoints * 2 - 1
+
+    frames_keypoints = dict(zip(frame_labels, frames_keypoints))
+    return frames_keypoints
+
 
 if __name__ == '__main__':
     prefix = 'person2'
 
-    json_path = '../datasets/'+prefix
+    json_path = '../datasets/' + prefix
 
     video_path = '/home/toofy/JSALT_videos/'
 
@@ -234,7 +277,7 @@ if __name__ == '__main__':
                                video_file_path=None,
                                transform=NoseNormalize())
 
-    print(datetime.datetime.now()-start)
+    print(datetime.datetime.now() - start)
 
     # data_val.plot_points2video(0, prefix+'_0.avi')
     # data_val.plot_points(1)
