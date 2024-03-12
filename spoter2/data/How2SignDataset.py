@@ -4,6 +4,7 @@ from torch.utils.data import Dataset
 import json
 import os
 import cv2
+import torch
 import warnings
 import matplotlib.pyplot as plt
 import datetime
@@ -45,9 +46,12 @@ class How2SignDataset(Dataset):
 
         data = self.load_data(idx=index)
         if self.transform:
-            return self.transform(data['KPI']), data['SENTENCE']
-        else:
-            return data['KPI'], data['SENTENCE']
+            data['KPI'] = self.transform(data['KPI'])
+
+        return {
+            "data": torch.tensor(data['KPI']).float(),
+            "sentence": data['SENTENCE']
+        }
 
     def __len__(self):
         return len(self.json_paths.keys())

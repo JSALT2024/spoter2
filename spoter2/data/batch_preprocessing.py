@@ -7,7 +7,18 @@ def collate_fn(batch: list):
     batch: list([B, SEQ, DIM])
     """
     data = [d["data"] for d in batch]
-    labels = [d["label"] for d in batch]
+
+    keys = list(batch[0].keys())
+    keys.remove("data")
+    other = {}
+    for key in keys:
+        other[key] = []
+        for b in batch:
+            value = b[key]
+            other[key].append(value)
+    for k, v in other.items():
+        if isinstance(v[0], int):
+            other[k] = torch.tensor(other[k], dtype=torch.long)
 
     pad_token = torch.zeros([1, data[0].shape[-1]])
     target_length = np.max([sample.shape[0] for sample in data])
@@ -23,8 +34,10 @@ def collate_fn(batch: list):
         _batch.append(sample)
         padding_idx.append(seq_len)
 
-    return {
+    new_batch = {
         "data": torch.stack(_batch),
         "padding_idx": padding_idx,
-        "labels": torch.tensor(labels, dtype=torch.long)
     }
+    new_batch.update(other)
+
+    return new_batch

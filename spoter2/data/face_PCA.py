@@ -6,7 +6,7 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 
-json_path = '../datasets/'
+json_path = '../../datasets/'
 def get_json_data():
     json_paths = []
     for filename in os.listdir(json_path):

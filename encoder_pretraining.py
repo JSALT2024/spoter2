@@ -2,7 +2,7 @@ import argparse
 
 from torch import nn
 
-from spoter2.data import StructuredDummyDataset, WLASLDataset
+from spoter2.data import StructuredDummyDataset, WLASLDataset, How2SignDataset
 from spoter2.model import SPOTEREncoderPreTraining
 from spoter2.training import (PretrainingPredictionExamples,
                               PretrainingTrainer, SaveCheckpoint)
@@ -50,9 +50,20 @@ def train(config):
     set_seed(config.get("seed", 0))
     model = model_versions[config["model_name"]](config)
 
-    if "train_file" in config and "val_file" in config:
+    # if "train_file" in config and "val_file" in config:
+    #     train_dataset = WLASLDataset(config["train_file"])
+    #     val_dataset = WLASLDataset(config["val_file"])
+    # else:
+    #     train_dataset = StructuredDummyDataset(256, (128, 256), config["data_dim"])
+    #     val_dataset = StructuredDummyDataset(256, (128, 256), config["data_dim"])
+
+    dataset_name = config.get("dataset_name", "").lower()
+    if dataset_name == "wlasl":
         train_dataset = WLASLDataset(config["train_file"])
         val_dataset = WLASLDataset(config["val_file"])
+    elif dataset_name == "how2sign":
+        train_dataset = How2SignDataset(config["train_file"])
+        val_dataset = How2SignDataset(config["val_file"])
     else:
         train_dataset = StructuredDummyDataset(256, (128, 256), config["data_dim"])
         val_dataset = StructuredDummyDataset(256, (128, 256), config["data_dim"])
