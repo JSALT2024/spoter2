@@ -8,6 +8,7 @@ import warnings
 import matplotlib.pyplot as plt
 import datetime
 from operator import itemgetter
+from typing import Tuple
 
 
 class How2SignDataset(Dataset):
@@ -220,6 +221,25 @@ class NoseNormalize(object):
         return sample
 
 
+def get_keypoints(joints, landmarks_name):
+    frames_keypoints = np.array(
+        [np.array(frame[landmarks_name])[:, :2] for frame in joints.values() if frame[landmarks_name]])
+    valid_frames = [i for i, frame in enumerate(joints.values()) if frame[landmarks_name]]
+
+    _frames_keypoints = np.zeros([len(joints), *frames_keypoints.shape[1:]])
+    _frames_keypoints[valid_frames] = frames_keypoints
+    frames_keypoints = _frames_keypoints
+
+    return frames_keypoints, valid_frames
+
+
+def output_keypoints(joints, valid_frames, frames_keypoints):
+    frames_names = np.array(list(joints.keys()))[valid_frames]
+    frames_keypoints = frames_keypoints[valid_frames]
+
+    return dict(zip(frames_names, frames_keypoints))
+
+
 def local_keypoint_normalization(joints: dict, landmarks: str, select_idx: list = [], padding: float = 0.1) -> dict:
     frames_keypoints = np.array([np.array(frame[landmarks])[:, :2] for frame in joints.values() if frame[landmarks]])
     frame_labels = [k for k, frame in joints.items() if frame[landmarks]]
@@ -263,6 +283,57 @@ def local_keypoint_normalization(joints: dict, landmarks: str, select_idx: list 
 
     frames_keypoints = dict(zip(frame_labels, frames_keypoints))
     return frames_keypoints
+
+
+def global_keypoint_normalization(
+        joints: dict,
+        landmarks: str,
+        add_landmarks_names: list,
+        face_select_idx: list = [],
+        sign_area_size: tuple = (1.5, 1.5),
+        l_shoulder_idx: int = 11,
+        r_shoulder_idx: int = 12) -> Tuple[dict, dict]:
+    frames_keypoints, valid_frames = get_keypoints(joints, landmarks)
+
+    # get distance between right and left shoulder
+    l_shoulder_points = frames_keypoints[:, l_shoulder_idx, :]
+    r_shoulder_points = frames_keypoints[:, r_shoulder_idx, :]
+    distance = np.sqrt((l_shoulder_points[:, 0] - r_shoulder_points[:, 0]) ** 2 + (
+                l_shoulder_points[:, 1] - r_shoulder_points[:, 1]) ** 2)
+
+    # get center point between shoulders
+    center_x = np.abs(l_shoulder_points[:, 0] - r_shoulder_points[:, 0]) / 2 + np.min(
+        [l_shoulder_points[:, 0], r_shoulder_points[:, 0]], 0)
+    center_y = np.abs(l_shoulder_points[:, 1] - r_shoulder_points[:, 1]) / 2 + np.min(
+        [l_shoulder_points[:, 1], r_shoulder_points[:, 1]], 0)
+    sign_area_size = np.array(sign_area_size) * distance[:, np.newaxis]
+
+    # normalize
+    frames_keypoints[:, :, 0] -= center_x[:, np.newaxis]
+    frames_keypoints[:, :, 1] -= center_y[:, np.newaxis]
+
+    frames_keypoints[:, :, 0] /= sign_area_size[:, 1, np.newaxis]
+    frames_keypoints[:, :, 1] /= sign_area_size[:, 0, np.newaxis]
+
+    # normalize additional landmarks
+    add_landmarks = {}
+    for add_landmarks_name in add_landmarks_names:
+        add_frames_keypoints, add_valid_frames = get_keypoints(joints, add_landmarks_name)
+
+        if face_select_idx and add_landmarks_name == "face_landmarks":
+            add_frames_keypoints = add_frames_keypoints[:, face_select_idx, :]
+
+        add_frames_keypoints[:, :, 0] -= center_x[:, np.newaxis]
+        add_frames_keypoints[:, :, 1] -= center_y[:, np.newaxis]
+
+        add_frames_keypoints[:, :, 0] /= sign_area_size[:, 1, np.newaxis]
+        add_frames_keypoints[:, :, 1] /= sign_area_size[:, 0, np.newaxis]
+
+        add_landmarks[add_landmarks_name] = output_keypoints(joints, add_valid_frames, add_frames_keypoints)
+
+    frames_keypoints = output_keypoints(joints, valid_frames, frames_keypoints)
+
+    return frames_keypoints, add_landmarks
 
 
 if __name__ == '__main__':
