@@ -1,0 +1,21 @@
+# training
+batch_size: 8
+num_workers: 2
+epochs: 10
+learning_rate: 0.0001
+seed: 0
+optimizer: adamw
+scheduler: cos
+# model
+model_name: small
+max_sequence_length: 2048
+positional_encoding: learnable_normal-0.08
+mask_ratio: 0.5
+# data
+dataset_name: how2sign
+data_dim: 214
+kp_normalization:
+  - "local-face_landmarks"
+  - "global-pose_landmarks"
+  - "global-right_hand_landmarks"
+  - "global-left_hand_landmarks"
