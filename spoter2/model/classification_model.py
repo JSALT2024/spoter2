@@ -71,8 +71,11 @@ class SPOTERClassification(nn.Module):
 
     def load_encoder(self, path: str):
         model = torch.load(path)["model"]
-        model = self._replace_prefix(model, "encoder.transformer_layers", "transformer_encoder.layers")
-        self.encoder.load_state_dict(model, strict=False)
+        model = self._replace_prefix(model, "encoder.transformer_encoder", "transformer_encoder")
+        model = self._replace_prefix(model, "encoder.pad_token", "pad_token")
+        msg = self.encoder.load_state_dict(model, strict=False)
+        print("missing_keys:", msg[0])
+        print("unexpected_keys:", msg[1])
 
     def forward(self, x: torch.tensor, padding_idx: list | None = None):
         x = self.encoder(x, padding_idx)
