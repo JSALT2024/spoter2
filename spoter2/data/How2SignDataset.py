@@ -5,7 +5,8 @@ import os
 import cv2
 import datetime
 import h5py
-from normalization import local_keypoint_normalization, global_keypoint_normalization
+import torch
+from .normalization import local_keypoint_normalization, global_keypoint_normalization
 
 
 class How2SignDataset(Dataset):
@@ -43,9 +44,9 @@ class How2SignDataset(Dataset):
 
         data, sentence = self.load_data(idx=index)
         if self.transform:
-            return self.transform(data), sentence
-        else:
-            return data, sentence
+            data = self.transform(data)
+
+        return {"data": torch.tensor(data).float(), "sentence": sentence}
 
     def __len__(self):
         with h5py.File(self.h5_path, 'r') as f:
@@ -169,32 +170,3 @@ class How2SignDataset(Dataset):
         cap.release()
         cv2.destroyAllWindows()
         video.release()
-
-
-if __name__ == '__main__':
-    h5_path = '../datasets/H2S_val.h5'
-    video_path = '/home/toofy/JSALT_videos/'
-
-    kp_normalization = [
-        "local-face_landmarks",
-        "global-pose_landmarks",
-        "global-right_hand_landmarks",
-        "global-left_hand_landmarks",
-    ]
-
-    start = datetime.datetime.now()
-    data_val = How2SignDataset(h5_path=h5_path,
-                               video_file_path=video_path,
-                               transform=None,
-                               kp_normalization=kp_normalization
-                               )
-
-    print(datetime.datetime.now() - start)
-    print(data_val.__len__())
-
-    dataloader = DataLoader(data_val, batch_size=1, shuffle=False, num_workers=0)
-    for i_batch, sample_batched in enumerate(dataloader):
-        print(i_batch, len(sample_batched))
-        print(sample_batched[0].shape, sample_batched[1])
-        if i_batch == 4:
-            break
