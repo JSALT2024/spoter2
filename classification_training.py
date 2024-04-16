@@ -1,9 +1,8 @@
 import argparse
 
 from torch import nn
-from torchvision import transforms
 
-from spoter2.data import StructuredDummyDataset, WLASLDataset, GaussianNoise
+from spoter2.data import StructuredDummyDataset, WLASLDataset
 from spoter2.model import SPOTERClassification
 from spoter2.training import ClassificationTrainer, SaveCheckpoint
 from spoter2.utils import load_yaml, merge_configs, set_seed
@@ -12,9 +11,8 @@ from training_utils import get_scheduler, get_optimizer, get_dataloaders, get_wa
 
 def get_args_parser():
     parser = get_default_parser()
-    parser.add_argument('--gaussian_mean', type=float, default=0.0)
-    parser.add_argument('--gaussian_std', type=float, default=0.001)
     parser.add_argument('--num_classes', type=int, default=100)
+    parser.add_argument('--checkpoint', type=str)
 
     return parser
 
@@ -71,9 +69,9 @@ def train(config):
     if config.get("checkpoint", ""):
         model.load_encoder(config["checkpoint"])
 
-    if "train_file" in config and "val_file" in config:
-        transform = transforms.Compose([GaussianNoise(config["gaussian_mean"], config["gaussian_std"])])
-        train_dataset = WLASLDataset(config["train_file"], transform)
+    dataset_name = config.get("dataset_name", "").lower()
+    if dataset_name == "wlasl":
+        train_dataset = WLASLDataset(config["train_file"])
         val_dataset = WLASLDataset(config["val_file"])
     else:
         train_dataset = StructuredDummyDataset(256, (128, 256), config["data_dim"])

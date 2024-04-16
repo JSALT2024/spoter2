@@ -50,20 +50,15 @@ def train(config):
     set_seed(config.get("seed", 0))
     model = model_versions[config["model_name"]](config)
 
-    # if "train_file" in config and "val_file" in config:
-    #     train_dataset = WLASLDataset(config["train_file"])
-    #     val_dataset = WLASLDataset(config["val_file"])
-    # else:
-    #     train_dataset = StructuredDummyDataset(256, (128, 256), config["data_dim"])
-    #     val_dataset = StructuredDummyDataset(256, (128, 256), config["data_dim"])
-
     dataset_name = config.get("dataset_name", "").lower()
     if dataset_name == "wlasl":
         train_dataset = WLASLDataset(config["train_file"])
         val_dataset = WLASLDataset(config["val_file"])
     elif dataset_name == "how2sign":
-        train_dataset = How2SignDataset(config["train_file"])
-        val_dataset = How2SignDataset(config["val_file"])
+        train_dataset = How2SignDataset(config["train_file"], config.get("train_video_path", None),
+                                        kp_normalization=config.get("kp_normalization", []))
+        val_dataset = How2SignDataset(config["val_file"], config.get("train_video_path", None),
+                                      kp_normalization=config.get("kp_normalization", []))
     else:
         train_dataset = StructuredDummyDataset(256, (128, 256), config["data_dim"])
         val_dataset = StructuredDummyDataset(256, (128, 256), config["data_dim"])
