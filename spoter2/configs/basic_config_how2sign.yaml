@@ -8,7 +8,7 @@ optimizer: adamw
 scheduler: cos
 # model
 model_name: small
-max_sequence_length: 2048
+max_sequence_length: 3072
 positional_encoding: learnable_normal-0.08
 mask_ratio: 0.5
 # data
