@@ -1,4 +1,6 @@
 import argparse
+from datetime import datetime
+import os
 
 from torch import nn
 
@@ -86,6 +88,11 @@ def train(config):
     # initialize callbacks
     callbacks = []
     if config.get("checkpoint_folder", ""):
+        experiment_name = datetime.now().strftime("%d-%m_%H-%M-%S")
+        if config.get("name", ""):
+            experiment_name = f"{config['name']}-{experiment_name}"
+        config["checkpoint_folder"] = os.path.join(config["checkpoint_folder"], experiment_name)
+
         callbacks.append(SaveCheckpoint(config["checkpoint_folder"]))
 
     wandb_callback = get_wandb_callback(config)
