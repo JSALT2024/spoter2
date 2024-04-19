@@ -30,3 +30,19 @@ python classification_training.py \
   --num_classes 100 \
   --checkpoint <path/to/checkpoint.pth>
 ```
+
+## Singularity
+```def
+Bootstrap: docker
+From: nvcr.io/nvidia/pytorch:23.10-py3
+
+%post
+    apt-get update 
+    apt-get install -y libsm6 libxext6 libxrender-dev
+    pip install packaging==23.2
+    pip install tqdm==4.66.1
+    pip install torchmetrics==1.2.0
+    pip install wandb==0.16.0
+    pip install pandas==2.1.3
+    pip install h5py==3.11.0
+```
