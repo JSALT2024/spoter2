@@ -37,7 +37,8 @@ class SaveCheckpoint:
 
     def __call__(self, trainer: BaseTrainer):
         loss = trainer.metrics["val_loss"].compute()
-        if self.top_val_loss < 0 or loss <= self.top_val_loss:
+
+        if self.top_val_loss < 0 or loss <= self.top_val_loss or trainer.epochs - 1 == trainer.epoch:
             self.top_val_loss = loss
 
             if not os.path.isdir(self.path):
@@ -52,6 +53,9 @@ class SaveCheckpoint:
             if trainer.scheduler is not None:
                 components_to_save['scheduler'] = trainer.scheduler.state_dict()
             torch.save(components_to_save, path)
+
+            if trainer.epochs - 1 == trainer.epoch:
+                return
 
             if os.path.isfile(self.last_saved_checkpoint_name):
                 os.remove(self.last_saved_checkpoint_name)
@@ -113,7 +117,7 @@ class PretrainingPredictionExamples:
                     px, py = p[0::2], p[1::2]
                     ax[i, c + 2].scatter(dx, dy, c="tab:green", marker="x", label="target")
                     ax[i, c + 2].scatter(px, py, c="tab:red", marker="+", label="prediction")
-                    ax[i, c + 2].set(xlim=(0, 1), ylim=(0, 1))
+                    ax[i, c + 2].set(xlim=(-1, 1), ylim=(-1, 1))
                     ax[i, c + 2].set_aspect("equal")
                     ax[i, c + 2].set_title(f"frame: {idx_select[c]}")
                     ax[i, c + 2].legend(loc='upper center', bbox_to_anchor=(0.5, -0.2))
