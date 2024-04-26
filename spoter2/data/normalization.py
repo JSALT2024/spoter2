@@ -105,7 +105,7 @@ def global_keypoint_normalization(
         add_frames_keypoints[:, :, 1] -= center_y[:, np.newaxis]
 
         add_frames_keypoints[:, :, 0] = safe_divide(add_frames_keypoints[:, :, 0], sign_area_size[:, 1, np.newaxis])
-        add_frames_keypoints[:, :, 1] = safe_divide(add_frames_keypoints[:, :, 0], sign_area_size[:, 1, np.newaxis])
+        add_frames_keypoints[:, :, 1] = safe_divide(add_frames_keypoints[:, :, 1], sign_area_size[:, 1, np.newaxis])
 
         add_landmarks[add_landmarks_name] = add_frames_keypoints
 
