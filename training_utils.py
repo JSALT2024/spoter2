@@ -72,10 +72,11 @@ def get_dataloaders(config, train_dataset, val_dataset):
 
 def get_wandb_callback(config):
     wandb_callback = None
-    if "wandb_api_key" in config:
+    if config.get("wandb_api_key", None) is not None:
         os.environ['WANDB_API_KEY'] = config["wandb_api_key"]
+        del config["wandb_api_key"]
 
-    if config.get("project", "") and os.environ['WANDB_API_KEY']:
+    if config.get("project", "") and os.environ.get('WANDB_API_KEY', None) is not None:
         # initialize wandb
         kwarg_names = ["group", "name", "entity", "tags"]
         wandb_kwargs = {n: config[n] for n in kwarg_names if n in config}
