@@ -17,24 +17,38 @@ class How2SignDataset(Dataset):
         transform (callable, optional): Optional transform to be applied on a sample.
     """
 
-    def __init__(self, h5_path, video_file_path=None, transform=None, kp_normalization: list = []):
+    def __init__(self,
+                 h5_path,
+                 video_file_path=None,
+                 transform=None,
+                 kp_normalization: list = [],
+                 face_landmarks: str = "YouTubeASL"):
 
         self.video_path = video_file_path
         self.h5_path = h5_path
 
         self.video_names = {}
 
-        self.face_landmarks = [101, 214,  # left cheek top, bot
-                               330, 434,  # right cheek top, bot
-                               197, 195, 4, 1,  # nose rigid1, rigid2, flex, tip
-                               295, 282, 283,  # right eyebrow
-                               53, 52, 65,  # left eyebrow
-                               263, 386, 362, 374,  # right eye
-                               33, 159, 133, 145,  # left eye
-                               40, 270, 91, 321,  # outer mouth sqruare
-                               311, 81, 178, 402,  # inner mouth square
-                               78, 308  # inner mouth corners
-                               ]
+        if face_landmarks == "YouTubeASL":
+            self.face_landmarks = [
+                0, 4, 13, 14, 17, 33, 39, 46, 52, 55, 61, 64, 81,
+                93, 133, 151, 152, 159, 172, 178, 181, 263, 269, 276,
+                282, 285, 291, 294, 311, 323, 362, 386, 397, 402, 405, 468, 473
+            ]
+        elif face_landmarks == "UWB":
+            self.face_landmarks = [
+                101, 214,  # left cheek top, bot
+                330, 434,  # right cheek top, bot
+                197, 195, 4, 1,  # nose rigid1, rigid2, flex, tip
+                295, 282, 283,  # right eyebrow
+                53, 52, 65,  # left eyebrow
+                263, 386, 362, 374,  # right eye
+                33, 159, 133, 145,  # left eye
+                40, 270, 91, 321,  # outer mouth sqruare
+                311, 81, 178, 402,  # inner mouth square
+                78, 308  # inner mouth corners
+            ]
+
         self.transform = transform
         self.kp_normalization = kp_normalization
 
@@ -119,7 +133,7 @@ class How2SignDataset(Dataset):
                 additional_landmarks
             )
 
-            for k,  landmark in global_landmarks.items():
+            for k, landmark in global_landmarks.items():
                 if landmark == "pose_landmarks":
                     global_landmarks[k] = keypoints
                 else:
