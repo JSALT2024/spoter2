@@ -112,18 +112,18 @@ class How2SignDataset(Dataset):
             additional_landmarks = list(global_landmarks.values())
             if "pose_landmarks" in additional_landmarks:
                 additional_landmarks.remove("pose_landmarks")
-            if additional_landmarks:
-                keypoints, additional_keypoints = global_keypoint_normalization(
-                    joints,
-                    "pose_landmarks",
-                    additional_landmarks
-                )
 
-                for k,  landmark in global_landmarks.items():
-                    if landmark == "pose_landmarks":
-                        global_landmarks[k] = keypoints
-                    else:
-                        global_landmarks[k] = additional_keypoints[landmark]
+            keypoints, additional_keypoints = global_keypoint_normalization(
+                joints,
+                "pose_landmarks",
+                additional_landmarks
+            )
+
+            for k,  landmark in global_landmarks.items():
+                if landmark == "pose_landmarks":
+                    global_landmarks[k] = keypoints
+                else:
+                    global_landmarks[k] = additional_keypoints[landmark]
 
             all_landmarks = {**local_landmarks, **global_landmarks}
             data = []
