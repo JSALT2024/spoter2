@@ -4,7 +4,7 @@ import os
 
 from torch import nn
 
-from spoter2.data import StructuredDummyDataset, WLASLDataset, How2SignDataset
+from spoter2.data import StructuredDummyDataset, WLASLDataset, How2SignDataset, How2SignDatasetJSON
 from spoter2.model import SPOTEREncoderPreTraining
 from spoter2.training import (PretrainingPredictionExamples,
                               PretrainingTrainer, SaveCheckpoint)
@@ -61,6 +61,9 @@ def train(config):
                                         kp_normalization=config.get("kp_normalization", []))
         val_dataset = How2SignDataset(config["val_file"], config.get("train_video_path", None),
                                       kp_normalization=config.get("kp_normalization", []))
+    elif dataset_name == "youtubeasl":
+        train_dataset = How2SignDatasetJSON(config["train_file"], kp_normalization=config.get("kp_normalization", []))
+        val_dataset = How2SignDatasetJSON(config["val_file"], kp_normalization=config.get("kp_normalization", []))
     else:
         train_dataset = StructuredDummyDataset(256, (128, 256), config["data_dim"])
         val_dataset = StructuredDummyDataset(256, (128, 256), config["data_dim"])
